@@ -1,0 +1,23 @@
+---
+title: "beer1"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1
+```{r}
+library(jsonlite)
+json = fromJSON("reviews2.json")
+```
+
+```{r}
+library(data.table)
+fwrite(json, file ="reviews3.csv")
+```
+
+```{r}
+reviews = read.csv("reviews.csv", header=FALSE)
+```
