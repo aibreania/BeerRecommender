@@ -1,0 +1,78 @@
+---
+title: "task4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Task3
+
+Beer Style vs Location
+
+```{r}
+library(jsonlite)
+beers = fromJSON("~/Downloads/WebProjects/beer1/beer1.json")
+print(dim(beers))
+```
+
+```{r}
+i = 0
+df = data.frame(X=c("American Double"),Y=c("Michigan"), Z=1, stringsAsFactors=FALSE)
+newrow = c("Imperial Stout", "Michigan", 1)
+df = rbind(df, newrow)
+i = 1
+
+while(i < nrow(beers)) {
+  i = i + 1
+  s = unlist(strsplit(beers[i,]$Style, "/"))
+  a = beers[i,]$State
+  n = 0
+  for(ss in s) {
+    ss = gsub("^\\s+|\\s+$", "", ss)
+    newrow = c(ss, a, 1)
+    df = rbind(df, newrow)
+  }
+}
+dim(df)
+```
+
+
+```{r}
+library(plyr)
+counts <- ddply(df, .(df$X, df$Y), nrow)
+names(counts) <- c("Style", "State", "Freq")
+library(data.table)
+dt <- data.table(counts)
+library(reshape2)
+dt2 <- acast(dt, Style~State, value.var="Freq")
+dt2[is.na(dt2)] = 0
+df2 = data.frame(dt2)
+```
+
+```{r}
+i = 0
+sums = c()
+while(i < ncol(df2)) {
+  i = i + 1
+  s = sum(df2[i])
+  df2[i] = df2[i]/s
+}
+m = data.matrix(df2)
+(ij = which(m >= sort(m, decreasing=T)[4], arr.ind=TRUE))
+m[ij]
+
+rowNames = row.names(m)
+colNames = colnames(m)
+
+print("Here are the locations and styles that's most correlated:")
+i = 0
+while(i < nrow(ij)) {
+  i = i + 1
+  rNum = ij[i]
+  cNum = ij[i+nrow(ij)]
+  str = paste(rowNames[rNum], colNames[cNum], sep=" from ")
+  print(str)
+}
+```
