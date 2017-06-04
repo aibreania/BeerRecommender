@@ -1,0 +1,154 @@
+---
+title: "task4.Rmd"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#clear environment
+rm(list=ls())
+warnings = -1
+```
+
+## Loading Data
+
+```{r}
+library(jsonlite)
+library(data.table)
+beers = fromJSON("~/Downloads/WebProjects/beer1/beer1.json")
+grades = fread("~/Downloads/WebProjects/beer1/cleanGrades.csv")
+print(dim(beers))
+print(dim(grades))
+```
+
+### Processing Data
+
+```{r}
+#parse the useful data
+colnames(grades) = c("Name", "Look", "Smell", "Taste", "Feel", "Overall")
+m = merge(beers, grades, by = "Name")
+m = m[!duplicated(m$Name), ]
+dim(m)
+
+#formalize data
+df = m[, c("Abv", "Smell", "Taste", "Feel", "Look", "Score", "Overall")]
+percentize = function(col, s) {
+  i = 0
+  while(i < length(col)) {
+    i = i + 1
+    if(!grepl(s, col[i])) col[i] = 0
+    else {
+      col[i] = as.numeric(sub(s, "", col[i]))/100
+    }
+  }
+  return(col)
+}
+
+formator = function(col, s) {
+  i = 0
+  while(i < length(col)) {
+    i = i + 1
+    if(grepl(s, col[i])) col[i] = 0
+  }
+  return(col)
+}
+
+df$Abv = as.numeric(percentize(df$Abv, "%"))
+df$Smell = df$Smell/5
+df$Taste = df$Taste/5
+df$Feel = df$Feel/5
+df$Look = df$Look/5
+df$Overall = df$Overall/5
+df$Score = formator(df$Score, "-")
+df$Score = as.numeric(df$Score)/100
+```
+
+### Correlation Analysis
+```{r}
+cor(df)
+
+library(corrplot)
+x = cor(df[1:7])
+corrplot(x, type="upper", order="hclust")
+```
+
+### Deal with Reviews
+```{r}
+reviews1 = fread("~/Downloads/WebProjects/beer1/cleanReviews.csv")
+reviews2 = fread("~/Downloads/WebProjects/beer1/cleanReviews2.csv")
+library(dplyr)
+reviews = bind_rows(reviews1, reviews2)
+```
+
+###Analyzing Reviews
+```{r}
+library(stringr)
+HIDict = readLines("~/Downloads/ML/data/inqdict.txt")
+dict_pos = HIDict[grep("Pos",HIDict)]
+poswords = NULL
+for (s in dict_pos) {
+  s = strsplit(s,"#")[[1]][1]
+  poswords = c(poswords,strsplit(s," ")[[1]][1])
+}
+dict_neg = HIDict[grep("Neg",HIDict)]
+negwords = NULL
+for (s in dict_neg) {
+  s = strsplit(s,"#")[[1]][1]
+  negwords = c(negwords,strsplit(s," ")[[1]][1])
+}
+poswords = tolower(poswords)
+negwords = tolower(negwords)
+poswords = unique(poswords)
+negwords = unique(negwords)
+
+
+feedback = function(s) {
+  text = unlist(strsplit(s," "))
+  posmatch = match(text,poswords)
+  numposmatch = length(posmatch[which(posmatch>0)])
+  negmatch = match(text,negwords)
+  numnegmatch = length(negmatch[which(negmatch>0)])
+  res = numposmatch/(numposmatch+numnegmatch)
+  print(res)
+  return(res)
+}
+```
+
+```{r}
+t = list()
+i = 0
+
+while(i < nrow(reviews)) {
+  i = i + 1
+  print(i)
+  score = feedback(reviews[i]$review)
+  t = c(t, score)
+}
+length(t)
+```
+
+```{r}
+re = reviews
+re$Evaluation = t
+re = subset(re, select = c("beer", "Evaluation"))
+colnames(re) = c("Name", "Evaluation")
+re$Evaluation = round(as.numeric(re$Evaluation), 2)
+m2 = merge(m, re, by="Name")
+m2 = m2[!duplicated(m2$Name), ]
+m2 = na.omit(m2)
+df2 = m2[, c("Abv", "Smell", "Taste", "Feel", "Look", "Score", "Overall", "Evaluation")]
+
+df2$Abv = as.numeric(percentize(df2$Abv, "%"))
+df2$Smell = df2$Smell/5
+df2$Taste = df2$Taste/5
+df2$Feel = df2$Feel/5
+df2$Look = df2$Look/5
+df2$Overall = df2$Overall/5
+df2$Score = formator(df2$Score, "-")
+df2$Score = as.numeric(df2$Score)/100
+
+cor(df2)
+library(corrplot)
+x = cor(df2[1:8])
+corrplot(x, type="upper", order="hclust")
+```
