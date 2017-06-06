@@ -1,0 +1,81 @@
+---
+title: "task6"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+###Loading Data
+```{r}
+library(jsonlite)
+library(data.table)
+beers = fromJSON("~/Downloads/WebProjects/beer1/beer1.json")
+print(dim(beers))
+styles = fread("~/Downloads/WebProjects/beer1/beerStyles.csv")
+beers = merge(beers, styles, by = "Style")
+print(dim(beers))
+```
+
+###Data Preprocessing
+```{r}
+i = 0
+df = data.frame(T=1, A=beers$Name, W=beers$StyleID, X=beers$BigStyle, Y=beers$State,Z=beers$Abv, T=beers$Score, stringsAsFactors=FALSE)
+colnames(df) = c("BeerID", "Name", "StyleID", "Style", "State", "Abv", "Score")
+df = na.omit(df)
+i = 1
+t = df$BeerID
+for(j in 1:length(t)) {
+  t[j] = i
+  i = i + 1
+}
+df$BeerID = t
+styles2 = as.data.frame(df$Style, stringsAsFactors=FALSE)
+```
+
+###Create Style Matrix
+```{r}
+style_list = c("American Ales","Belgian / French Ales","English Ales","Finnish Ales","German Ales","Irish Ales","Russian Ales","Scottish Ales","American Lagers
+","Czech Lagers","European Lagers","German Lagers","Japanese Lagers","Hybrid Styles")
+ 
+style_matrix = matrix(0,1988,14) #empty matrix
+style_matrix[1,] = style_list #set first row to style list
+colnames(style_matrix) = style_list #set column names to style list
+ 
+#iterate through matrix
+for (i in 1:nrow(styles2)) {
+ genmat_col = which(style_matrix[1,] == styles2[i,1])
+ style_matrix[i+1,genmat_col] = 1
+}
+ 
+#convert into dataframe
+style_matrix2 = as.data.frame(style_matrix[-1,], stringsAsFactors=FALSE) #remove first row, which was the style list
+for (c in 1:ncol(style_matrix2)) {
+  style_matrix2[,c] = as.integer(style_matrix2[,c])
+} #convert from characters to integers
+```
+
+###Transform User Ratings
+```{r}
+df2 = df
+ratings = df2$Score
+#f = 0
+for (i in 1:length(ratings)){
+ if(ratings[i] == '-' || ratings[i] > 83) ratings[i] = 0
+ else {
+    ratings[i] = -1
+    #f = f + 1
+ }
+}
+df2$Score = ratings
+##choose 84 as the classfier because there are 870 beers under 84, nearly half the all beer types
+```
+
+```{r}
+library(reshape2)
+ratings2 = dcast(df2, StyleID~BeerID, value.var = "Score", na.rm=FALSE)
+
+ratings2 = ratings2[,-1] #remove movieIds col. Rows are movieIds, cols are userIds
+
+```
