@@ -1,5 +1,5 @@
 ---
-title: "task3&4"
+title: "task3"
 output: html_document
 ---
 
@@ -7,72 +7,103 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Task3
-
-Beer Style vs Location
+## Beer Style vs Location
+### Loading Data
 
 ```{r}
 library(jsonlite)
+library(data.table)
 beers = fromJSON("~/Downloads/WebProjects/beer1/beer1.json")
+print(dim(beers))
+styles = fread("~/Downloads/WebProjects/beer1/beerStyles.csv")
+beers =merge(beers, styles, by = "Style")
 print(dim(beers))
 ```
 
+###Some Functions
 ```{r}
-i = 0
-df = data.frame(X=c("American Double"),Y=c("Michigan"), Z=1, stringsAsFactors=FALSE)
-newrow = c("Imperial Stout", "Michigan", 1)
-df = rbind(df, newrow)
-i = 1
-
-while(i < nrow(beers)) {
-  i = i + 1
-  s = unlist(strsplit(beers[i,]$Style, "/"))
-  a = beers[i,]$State
-  n = 0
-  for(ss in s) {
-    ss = gsub("^\\s+|\\s+$", "", ss)
-    newrow = c(ss, a, 1)
-    df = rbind(df, newrow)
+toStr = function(str) {
+  s = strsplit(str, "")[[1]]
+  sum = 0
+  for(c in s) {
+    sum = sum + utf8ToInt(c)
   }
+  return(sum)
 }
-dim(df)
+
+percentize = function(col, s) {
+  i = 0
+  while(i < length(col)) {
+    i = i + 1
+    if(!grepl(s, col[i])) col[i] = 0
+    else {
+      col[i] = as.numeric(sub(s, "", col[i]))/100
+    }
+  }
+  return(col)
+}
+
+normalize = function(x) {
+    num = x - min(x)
+    denom = max(x) - min(x)
+    return (num/denom)
+}
+
+zeroToNA = function(col) {
+  i = 0
+  while(i < length(col)) {
+    i = i + 1
+    if(col[i] == 0) col[i] = NA
+  }
+  return(col)
+}
 ```
 
-
-```{r}
-library(plyr)
-counts <- ddply(df, .(df$X, df$Y), nrow)
-names(counts) <- c("Style", "State", "Freq")
-library(data.table)
-dt <- data.table(counts)
-library(reshape2)
-dt2 <- acast(dt, Style~State, value.var="Freq")
-dt2[is.na(dt2)] = 0
-df2 = data.frame(dt2)
-```
-
+### Using Data Frame to Reformat Data
 ```{r}
 i = 0
-sums = c()
-while(i < ncol(df2)) {
-  i = i + 1
-  s = sum(df2[i])
-  df2[i] = df2[i]/s
-}
-m = data.matrix(df2)
-(ij = which(m >= sort(m, decreasing=T)[4], arr.ind=TRUE))
-m[ij]
-
-rowNames = row.names(m)
-colNames = colnames(m)
-
-print("Here are the locations and styles that's most correlated:")
-i = 0
-while(i < nrow(ij)) {
-  i = i + 1
-  rNum = ij[i]
-  cNum = ij[i+nrow(ij)]
-  str = paste(rowNames[rNum], colNames[cNum], sep=" from ")
-  print(str)
-}
+df = data.frame(A=beers$Name, W=beers$StyleID, X=beers$State,Y=beers$BigStyle, Z=beers$Abv, T=beers$Score, stringsAsFactors=FALSE)
+colnames(df) = c("Name", "StyleID", "Style", "State", "Abv", "Score")
+df = na.omit(df)
 ```
+
+
+### Correlation Analysis
+```{r}
+df2 = df
+df2$Style = sapply(df2$Style, FUN=toStr)
+df2$State = sapply(df2$State, FUN=toStr)
+df2$Style = df2$Style/1000
+df2$State = df2$State/2000
+df2$Abv = as.numeric(percentize(df2$Abv, "%"))
+df2$Abv = sapply(df2$Abv, FUN=zeroToNA)
+df2$Score = as.numeric(df2$Score)
+
+df3 = df2[!is.na(df2$Abv), ]
+df3 = df3[!is.na(df3$Score),]
+cor(df3[3:6])
+```
+
+```{r}
+grades = fread("~/Downloads/WebProjects/beer1/cleanGrades.csv")
+colnames(grades) = c("Name", "Look", "Smell", "Taste", "Feel", "Overall")
+m = merge(df3, grades, by = "Name")
+m = m[!duplicated(m$Name), ]
+dim(m)
+df3 = m
+df3$Smell = df3$Smell/5
+df3$Taste = df3$Taste/5
+df3$Feel = df3$Feel/5
+df3$Look = df3$Look/5
+df3$Overall = df3$Overall/5
+df3$Score = formator(df3$Score, "-")
+df3$Score = as.numeric(df3$Score)/100
+```
+```{r}
+cor(df3[3:11])
+
+library(corrplot)
+x = cor(df3[3:11])
+corrplot(x, type="upper", order="hclust")
+```
+
